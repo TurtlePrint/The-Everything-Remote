@@ -1,7 +1,7 @@
 # The Ultimate Everything Remote
 
 Modifications made to the Everthing Remote to make it the Ultimate Everything Remote
-- Pogo pins for charging. Increased length of the remote to 155mm accomidate the USB-C breakout board and pogo pins.
+- Added magnetic pogo pins for charging. Increased length of the remote to 155mm to accomidate the USB-C breakout board and pogo pins.
 - Removed one of the hardware pull up resistors and added a voltage divider circuit in its place, still retaining button use but now also accuarate battery metrics
 - Removed GPIO15 Button and replaced with a WS2812 LED pixel for notifications (And a built in flash light mode)
 - Added continuous press mode on specific buttons to enable holding volume up or down
