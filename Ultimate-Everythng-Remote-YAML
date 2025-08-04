@@ -1,0 +1,993 @@
+esphome:
+  name: "livingroom-remote"
+  friendly_name: livingroom-remote
+  min_version: 2025.5.0
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Allow Over-The-Air updates
+ota:
+- platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  power_save_mode: LIGHT  # Keep this - it saves significant power
+  output_power: 10dB  # Reduce WiFi power if signal is strong enough
+
+web_server:
+
+
+# ┌─────────────────────────────────────────┐
+# │              REMOTE LAYOUT              │
+# │                                         │
+# │     ┌─────┐    ╔═╦═╗                   │
+# │     │  0  │    ║ ║ ║ (IR Receiver)     │
+# │     └─────┘    ╚═╩═╝                   │
+# │                                         │
+# │   ┌─────┐ ┌─────┐ ┌─────┐              │
+# │   │  2  │ │  4  │ │  5  │              │
+# │   └─────┘ └─────┘ └─────┘              │
+# │                                         │
+# │         ┌─────────────────┐             │
+# │         │       18        │             │
+# │    ┌────┤    ┌─────┐      │────┐        │
+# │    │ 19 │    │ 22  │      │ 23 │        │
+# │    └────┤    └─────┘      │────┘        │
+# │         │       25        │             │
+# │         └─────────────────┘             │
+# │                                         │
+# │   ┌─────┐ ┌─────┐ ┌─────┐              │
+# │   │ 12  │ │ 13  │ │ 14  │              │
+# │   │     │ │     │ │     │              │
+# │   │ 15  │ │ 16  │ │ 17  │              │
+# │   └─────┘ └─────┘ └─────┘              │
+# │                                         │
+# │   ┌─────┐        ┌─────┐               │
+# │   │ 34  │        │ 35  │               │
+# │   └─────┘        └─────┘               │
+# │                                         │
+# │   ┌─────┐        ┌─────┐               │
+# │   │ 32  │        │ 33  │               │
+# │   └─────┘        └─────┘               │
+# │                                         │
+# │   ┌──────      ─────────┐               │
+# │   │   26 │     │ 27     │               │
+# │   └───────     ─────────┘               │
+# └─────────────────────────────────────────┘
+
+# ===========================================
+# BUTTON NAMING CONSTANTS - EDIT THESE TO RENAME!
+# ===========================================
+substitutions:
+  # Top Row
+  btn_0_name: "Power"
+  btn_0_id: "power"
+  btn_0_event: "power"
+  
+  # Second Row  
+  btn_2_name: "Circle Button Left"
+  btn_2_id: "circle_button_left"
+  btn_2_event: "circle_button_left"
+  
+  btn_4_name: "Circle Button Middle"
+  btn_4_id: "circle_button_middle"
+  btn_4_event: "circle_button_middle"
+  
+  btn_5_name: "Circle Button Right"
+  btn_5_id: "circle_button_right"
+  btn_5_event: "circle_button_right"
+  
+  # Directional Pad
+  btn_18_name: "Up"
+  btn_18_id: "up"
+  btn_18_event: "up"
+  
+  btn_19_name: "Left"
+  btn_19_id: "left"
+  btn_19_event: "left"
+  
+  btn_22_name: "Select"
+  btn_22_id: "select_button"
+  btn_22_event: "select_button"
+  
+  btn_23_name: "Right"
+  btn_23_id: "right"
+  btn_23_event: "right"
+  
+  btn_25_name: "Down"
+  btn_25_id: "down"
+  btn_25_event: "down"
+  
+  # Volume/Channel Controls
+  btn_14_name: "Volume Up"
+  btn_14_id: "volume_up"
+  btn_14_event: "volume_up"
+  
+  btn_17_name: "Volume Down"
+  btn_17_id: "volume_down"
+  btn_17_event: "volume_down"
+  
+  btn_12_name: "Back"
+  btn_12_id: "back"
+  btn_12_event: "back"
+  
+  btn_15_name: "Shortcut Left"
+  btn_15_id: "shortcut_left"
+  btn_15_event: "shortcut_left"
+  
+  btn_16_name: "Shortcut Right"
+  btn_16_id: "shortcut_right"
+  btn_16_event: "shortcut_right"
+  
+  btn_13_name: "Home"
+  btn_13_id: "home"
+  btn_13_event: "home"
+  
+
+  # Bottom Rockers and Presets
+  btn_34_name: "Preset Left"
+  btn_34_id: "preset_left"
+  btn_34_event: "preset_left"
+  
+  btn_35_name: "Preset Right"
+  btn_35_id: "preset_right"
+  btn_35_event: "preset_right"
+  
+  btn_32_name: "Left Rocker Up"
+  btn_32_id: "left_rocker_1"
+  btn_32_event: "left_rocker_1"
+  
+  btn_33_name: "Right Rocker Up"
+  btn_33_id: "right_rocker_4"
+  btn_33_event: "right_rocker_4"
+  
+  
+  btn_26_name: "Left Rocker Down"
+  btn_26_id: "left_rocker_down"
+  btn_26_event: "left_rocker_down"
+  
+  btn_27_name: "Right Rocker Down"
+  btn_27_id: "right_rocker_up"
+  btn_27_event: "right_rocker_up"
+
+globals:
+  - id: last_active
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: wake_button_processed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # NEW: Add flashlight mode tracking
+  - id: flashlight_mode
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: flashlight_brightness
+    type: float
+    restore_value: yes  # Remember brightness between reboots
+    initial_value: '0.5'  # Start at 50%
+  - id: flashlight_white_mode
+    type: bool
+    restore_value: yes  # Remember color preference between reboots
+    initial_value: 'true'  # Start with white
+
+
+
+script:
+  - id: reset_idle_timer
+    then:
+      - lambda: |-
+          id(last_active) = millis() / 1000;
+  - id: continuous_button_press
+    parameters:
+      button_event: string
+    mode: restart
+    then:
+      - homeassistant.event:
+          event: esphome.remote_button_pressed
+          data: 
+            button: !lambda 'return button_event;'
+            type: "single"
+      - delay: 200ms
+      - script.execute:
+          id: continuous_button_press
+          button_event: !lambda 'return button_event;'
+
+  - id: led_quick_blink_red
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_led
+          red: 100%
+          green: 0%
+          blue: 0%
+          transition_length: 0s
+      - delay: 100ms
+      - light.turn_off:
+          id: status_led
+          transition_length: 0s
+
+  # NEW: Toggle flashlight mode
+  - id: toggle_flashlight_mode
+    mode: single
+    then:
+      - lambda: |-
+          if (id(flashlight_mode)) {
+            // Turn off flashlight mode
+            id(flashlight_mode) = false;
+            ESP_LOGI("flashlight", "Flashlight mode OFF");
+          } else {
+            // Turn on flashlight mode
+            id(flashlight_mode) = true;
+            ESP_LOGI("flashlight", "Flashlight mode ON at %.0f%% brightness", id(flashlight_brightness) * 100);
+          }
+      - script.execute: update_flashlight_led
+  # NEW: Adjust flashlight brightness
+  - id: adjust_flashlight_brightness
+    parameters:
+      direction: string  # "up" or "down"
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(flashlight_mode)) return;  // Only work in flashlight mode
+          
+          float step = 0.1;  // 10% steps
+          if (direction == "up") {
+            id(flashlight_brightness) = min(1.0f, id(flashlight_brightness) + step);
+          } else if (direction == "down") {
+            id(flashlight_brightness) = max(0.05f, id(flashlight_brightness) - step);  // Min 5%
+          }
+          
+          ESP_LOGI("flashlight", "Brightness adjusted to %.0f%%", id(flashlight_brightness) * 100);
+      - script.execute: update_flashlight_led
+
+  # MODIFIED: Update LED based on current state and color
+  - id: update_flashlight_led
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(flashlight_mode);'
+          then:
+            # Turn on light at current brightness with selected color
+            - if:
+                condition:
+                  lambda: 'return id(flashlight_white_mode);'
+                then:
+                  # White mode
+                  - light.turn_on:
+                      id: status_led
+                      red: 100%
+                      green: 100%
+                      blue: 100%
+                      brightness: !lambda 'return id(flashlight_brightness);'
+                      transition_length: 200ms
+                else:
+                  # Red mode
+                  - light.turn_on:
+                      id: status_led
+                      red: 100%
+                      green: 0%
+                      blue: 0%
+                      brightness: !lambda 'return id(flashlight_brightness);'
+                      transition_length: 200ms
+          else:
+            # Turn off LED
+            - light.turn_off:
+                id: status_led
+                transition_length: 200ms
+
+  # NEW: Toggle flashlight color
+  - id: toggle_flashlight_color
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(flashlight_mode)) return;  // Only work in flashlight mode
+          
+          id(flashlight_white_mode) = !id(flashlight_white_mode);
+          
+          if (id(flashlight_white_mode)) {
+            ESP_LOGI("flashlight", "Switched to WHITE mode at %.0f%% brightness", id(flashlight_brightness) * 100);
+          } else {
+            ESP_LOGI("flashlight", "Switched to RED mode at %.0f%% brightness", id(flashlight_brightness) * 100);
+          }
+      - script.execute: update_flashlight_led
+
+deep_sleep:
+  id: deep_sleep_ctrl
+  sleep_duration: 2800 min
+  wakeup_pin:
+    number: GPIO0
+    inverted: true
+    allow_other_uses: true
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            lambda: return (millis() / 1000) - id(last_active) >= 3600;
+          then:
+            - deep_sleep.enter: deep_sleep_ctrl
+
+
+sensor:
+  - platform: adc
+    pin: GPIO35
+    name: "Battery Voltage Raw"
+    id: battery_voltage_raw
+    update_interval: 5000ms  # Slower updates, less chatty
+    accuracy_decimals: 2    # Less precision, cleaner logs
+    internal: true          # Hide from HA dashboard
+    attenuation: 12db
+    on_value:
+      then:
+        - lambda: |-
+            static bool button_pressed = false;
+            static bool last_state = false;
+            static uint32_t press_start = 0;
+            
+            bool current_pressed = (x < 0.3);
+            
+            if (current_pressed && !last_state) {
+              button_pressed = true;
+              press_start = millis();
+              id(last_active) = millis() / 1000;
+            }
+            else if (!current_pressed && last_state && button_pressed) {
+              button_pressed = false;
+              uint32_t press_duration = millis() - press_start;
+              
+              if (press_duration < 350) {
+                ESP_LOGI("button", "Preset Right: Short press (%d ms)", press_duration);
+              } else if (press_duration >= 500) {
+                ESP_LOGI("button", "Preset Right: Long press (%d ms)", press_duration);
+              }
+            }
+            
+            last_state = current_pressed;
+
+  - platform: template
+    name: "Battery Voltage"
+    id: battery_voltage
+    update_interval: 10s  # Less frequent updates
+    accuracy_decimals: 2
+    unit_of_measurement: "V"
+    device_class: "voltage"
+    lambda: |-
+      float raw = id(battery_voltage_raw).state;
+      static float last_good = 4.18;
+      
+      if (raw < 0.3) {
+        return last_good;
+      }
+      
+      last_good = raw * 2.0;
+      return last_good;
+
+  - platform: template
+    name: "Battery Percentage"
+    id: battery_percentage
+    update_interval: 30s
+    accuracy_decimals: 0
+    unit_of_measurement: "%"
+    device_class: "battery"
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      float percentage = (voltage - 2.7) / 1.5 * 100.0;
+      return max(0.0f, min(100.0f, percentage));
+
+light:
+  - platform: esp32_rmt_led_strip
+    pin: GPIO15
+    chipset: WS2811
+    num_leds: 1
+    rgb_order: GRB
+    name: "Remote Status LED"
+    internal: true
+    id: status_led
+
+
+# Add charging status as a text sensor for more detail
+text_sensor:
+  - platform: template
+    name: "Charging Status"
+    id: charging_status_text
+    update_interval: 30s
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      float percentage = id(battery_percentage).state;
+      
+      if (voltage > 4.25) {
+        return {"Charging"};
+      } else if (percentage >= 95) {
+        return {"Full"};
+      } else if (percentage <= 15) {
+        return {"Low Battery"};
+      } else {
+        return {"On Battery"};
+      }
+
+
+# BUTTONS
+binary_sensor:
+
+  # ... your existing binary sensors ...
+  
+  - platform: template
+    name: "Battery Charging"
+    id: battery_charging
+    device_class: "battery_charging"
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      // Li-ion charging typically pushes voltage above 4.2V
+      // We'll use 4.25V as the threshold to detect charging
+      return voltage > 4.25;
+
+  # GPIO 0 - Power Button
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+      allow_other_uses: true
+    name: "${btn_0_name}"
+    id: ${btn_0_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - homeassistant.event:
+            event: esphome.remote_button_pressed
+            data: {button: "${btn_0_event}", type: "single"}
+
+  # GPIO 2 - Circle Buton Left
+  - platform: gpio
+    pin:
+      number: GPIO2
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_2_name}"
+    id: ${btn_2_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          - script.execute: led_quick_blink_red  # ADD THIS LINE
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_2_event}", type: "single"}
+      - timing:
+          - ON for at least 500ms
+        then:
+          - script.execute: reset_idle_timer
+          - script.execute: led_quick_blink_red  # ADD THIS LINE
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_2_event}", type: "long"}
+
+  # GPIO 4 - Circle Button Middle (MODIFIED for color toggle)
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_4_name}"
+    id: ${btn_4_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          - if:
+              condition:
+                lambda: 'return id(flashlight_mode);'
+              then:
+                # In flashlight mode - toggle color
+                - script.execute: toggle_flashlight_color
+              else:
+                # Normal mode - send HA event
+                - homeassistant.event:
+                    event: esphome.remote_button_pressed
+                    data: {button: "${btn_4_event}", type: "single"}
+      - timing:
+          - ON for at least 500ms
+        then:
+          - script.execute: reset_idle_timer
+          - if:
+              condition:
+                lambda: 'return id(flashlight_mode);'
+              then:
+                # In flashlight mode - toggle color (same as short press)
+                - script.execute: toggle_flashlight_color
+              else:
+                # Normal mode - send HA long press event
+                - homeassistant.event:
+                    event: esphome.remote_button_pressed
+                    data: {button: "${btn_4_event}", type: "long"}
+
+  # GPIO 5 - Circle Button Right
+  - platform: gpio
+    pin:
+      number: GPIO5
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_5_name}"
+    id: ${btn_5_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_5_event}", type: "single"}
+      - timing:
+          - ON for at least 500ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_5_event}", type: "long"}
+
+  # GPIO 18 - Up Button (MODIFIED for flashlight brightness)
+  - platform: gpio
+    pin:
+      number: GPIO18
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_18_name}"
+    id: ${btn_18_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - if:
+            condition:
+              lambda: 'return id(flashlight_mode);'
+            then:
+              # In flashlight mode - adjust brightness
+              - script.execute:
+                  id: adjust_flashlight_brightness
+                  direction: "up"
+            else:
+              # Normal mode - continuous button press
+              - script.execute:
+                  id: continuous_button_press
+                  button_event: "${btn_18_event}"
+    on_release:
+      then:
+        - if:
+            condition:
+              lambda: 'return !id(flashlight_mode);'
+            then:
+              # Only stop continuous press if not in flashlight mode
+              - script.stop: continuous_button_press
+
+# GPIO 19 - Left Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO19
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_19_name}"
+    id: ${btn_19_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_19_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 22 - Select Button
+  # GPIO 22 - Select Button (MODIFIED for flashlight)
+  - platform: gpio
+    pin:
+      number: GPIO22
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_22_name}"
+    id: ${btn_22_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          # Only send HA event if NOT in flashlight mode
+          - if:
+              condition:
+                lambda: 'return !id(flashlight_mode);'
+              then:
+                - homeassistant.event:
+                    event: esphome.remote_button_pressed
+                    data: {button: "${btn_22_event}", type: "single"}
+      - timing:
+          - ON for at least 800ms  # Longer press for flashlight
+        then:
+          - script.execute: reset_idle_timer
+          - script.execute: toggle_flashlight_mode
+
+# GPIO 23 - Right Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO23
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_23_name}"
+    id: ${btn_23_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_23_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 25 - Down Button (MODIFIED for flashlight brightness)
+  - platform: gpio
+    pin:
+      number: GPIO25
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_25_name}"
+    id: ${btn_25_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - if:
+            condition:
+              lambda: 'return id(flashlight_mode);'
+            then:
+              # In flashlight mode - adjust brightness
+              - script.execute:
+                  id: adjust_flashlight_brightness
+                  direction: "down"
+            else:
+              # Normal mode - continuous button press
+              - script.execute:
+                  id: continuous_button_press
+                  button_event: "${btn_25_event}"
+    on_release:
+      then:
+        - if:
+            condition:
+              lambda: 'return !id(flashlight_mode);'
+            then:
+              # Only stop continuous press if not in flashlight mode
+              - script.stop: continuous_button_press
+
+  # GPIO 12 - Volume Up Button
+  - platform: gpio
+    pin:
+      number: GPIO12
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_12_name}"
+    id: ${btn_12_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_12_event}", type: "single"}
+      - timing:
+          - ON for at least 500ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_12_event}", type: "long"}
+
+
+# GPIO 13 - Home Button
+  - platform: gpio
+    pin:
+      number: GPIO13
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_13_name}"
+    id: ${btn_13_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 500ms
+          - OFF for at least 10ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_13_event}", type: "single"}
+      - timing:
+          - ON for at least 800ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_13_event}", type: "long"}
+
+  # GPIO 14 - Volume Up Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO14
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_14_name}"
+    id: ${btn_14_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_14_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 15 - Left Sortcut - Disableded to try NeoPixel on pin
+  #- platform: gpio
+  #  pin:
+  #    number: GPIO15
+  #    mode:
+  #      input: true
+  #      pullup: true
+  #    inverted: true
+  #  name: "${btn_15_name}"
+  #  id: ${btn_15_id}
+  #  internal: true
+  #  on_multi_click:
+  #    - timing:
+  #        - ON for at most 350ms
+  #      then:
+  #        - script.execute: reset_idle_timer
+  #        - homeassistant.event:
+  #            event: esphome.remote_button_pressed
+  #            data: {button: "${btn_15_event}", type: "single"}
+  #    - timing:
+  #        - ON for at least 500ms
+  #      then:
+  #        - script.execute: reset_idle_timer
+  #        - homeassistant.event:
+  #            event: esphome.remote_button_pressed
+  #            data: {button: "${btn_15_event}", type: "long"}
+
+  # GPIO 16 - Settings Button
+  - platform: gpio
+    pin:
+      number: GPIO16
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_16_name}"
+    id: ${btn_16_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          - script.execute: led_quick_blink_red  # ADD THIS LINE
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_16_event}", type: "single"}
+      - timing:
+          - ON for at least 500ms
+        then:
+          - script.execute: reset_idle_timer
+          - script.execute: led_quick_blink_red  # ADD THIS LINE
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_16_event}", type: "long"}
+
+# GPIO 17 - Volume Down Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO17
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_17_name}"
+    id: ${btn_17_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_17_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 32 - Left Rocker Up Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO32
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_32_name}"
+    id: ${btn_32_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_32_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+# GPIO 33 - Right Rocker Up Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO33
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_33_name}"
+    id: ${btn_33_id}
+    internal: true
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_33_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 26 - Brightness Down Button
+# GPIO 26 - Left Rocker Down Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO26
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_26_name}"
+    id: ${btn_26_id}
+    internal: true 
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_26_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 27 - Right Rocker Down Button (Continuous)
+  - platform: gpio
+    pin:
+      number: GPIO27
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "${btn_27_name}"
+    id: ${btn_27_id}
+    internal: true 
+    on_press:
+      then:
+        - script.execute: reset_idle_timer
+        - script.execute:
+            id: continuous_button_press
+            button_event: "${btn_27_event}"
+    on_release:
+      then:
+        - script.stop: continuous_button_press
+
+  # GPIO 34 - Shortcut 1 Button
+  - platform: gpio
+    pin:
+      number: GPIO34
+      mode:
+        input: true
+      inverted: true
+    name: "${btn_34_name}"
+    id: ${btn_34_id}
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_34_event}", type: "single"}
+      - timing:
+          - ON for at least 500ms
+        then:
+          - script.execute: reset_idle_timer
+          - homeassistant.event:
+              event: esphome.remote_button_pressed
+              data: {button: "${btn_34_event}", type: "long"}
+
+  # GPIO 35 - Shortcut 2 Button
+  #- platform: gpio
+  #  pin:
+  #    number: GPIO35
+  #    mode:
+  #      input: true
+  #    inverted: true
+  #  name: "${btn_35_name}"
+  #  id: ${btn_35_id}
+  #  internal: true
+  #  on_multi_click:
+  #    - timing:
+  #        - ON for at most 350ms
+  #      then:
+  #        - script.execute: reset_idle_timer
+  #        - homeassistant.event:
+  #            event: esphome.remote_button_pressed
+  #            data: {button: "${btn_35_event}", type: "single"}
+  #    - timing:
+  #        - ON for at least 500ms
+  #      then:
+  #        - script.execute: reset_idle_timer
+  #        - homeassistant.event:
+  #            event: esphome.remote_button_pressed
+  #           data: {button: "${btn_35_event}", type: "long"}
