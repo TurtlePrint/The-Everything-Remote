@@ -5,6 +5,7 @@ Modifications made to the Everthing Remote to make it the Ultimate Everythign Re
 - removed one of the hardware pull up resistors and added a voltage divider circuit in its place, still retaining button use but now also accuarate battery metrics
 - Removed GPIO15 Button and replaced with a WS2812 LED pixel for notifications (And a built in flash light mode) 
 
+I'm still working on files and will get them uploaded when done.
 
 <img width="1151" height="1018" alt="image" src="https://github.com/user-attachments/assets/0bd6daff-3f87-42ff-a269-1e25a8250d1b" />
 
