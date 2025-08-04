@@ -5,6 +5,13 @@ Modifications made to the Everthing Remote to make it the Ultimate Everythign Re
 - removed one of the hardware pull up resistors and added a voltage divider circuit in its place, still retaining button use but now also accuarate battery metrics
 - Removed GPIO Button and replaced with a WS2812 LED pixel for notifications (And a built in flash light mode) 
 
+
+<img width="1151" height="1018" alt="image" src="https://github.com/user-attachments/assets/0bd6daff-3f87-42ff-a269-1e25a8250d1b" />
+
+<img width="551" height="1176" alt="image" src="https://github.com/user-attachments/assets/ee3f532f-f0ac-485d-9715-eec5b9755518" />
+
+
+
 A simple universal remote designed for ESPHome - simple to assemble for beginners and experienced tinkerers alike! 
 
 [![Video](https://img.youtube.com/vi/Pe_ozZkrRAw/maxresdefault.jpg)](https://www.youtube.com/watch?v=Pe_ozZkrRAw)
