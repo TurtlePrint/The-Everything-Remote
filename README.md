@@ -6,7 +6,7 @@ Modifications made to the Everthing Remote to make it the Ultimate Everything Re
 - Removed GPIO15 Button and replaced with a WS2812 LED pixel for notifications (And a built in flash light mode)
 - Added "Continuous Press" mode on specific buttons to enable holding volume up or down
 
-I'm still working on files and will get them uploaded when done.
+I'm still working on the print files and will get them uploaded when done.
 
 <img width="1151" height="1018" alt="image" src="https://github.com/user-attachments/assets/0bd6daff-3f87-42ff-a269-1e25a8250d1b" />
 
