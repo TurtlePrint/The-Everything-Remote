@@ -3,7 +3,8 @@
 Modifications made to the Everthing Remote to make it the Ultimate Everythign Remote
 - pogo pins for charging
 - removed one of the hardware pull up resistors and added a voltage divider circuit in its place, still retaining button use but now also accuarate battery metrics
-- Removed GPIO15 Button and replaced with a WS2812 LED pixel for notifications (And a built in flash light mode) 
+- Removed GPIO15 Button and replaced with a WS2812 LED pixel for notifications (And a built in flash light mode)
+- Enablded contious press mode on specific buttons to enable holding volume up or down
 
 I'm still working on files and will get them uploaded when done.
 
