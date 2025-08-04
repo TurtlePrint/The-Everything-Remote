@@ -15,7 +15,7 @@ I'm still working on files and will get them uploaded when done.
 <img width="866" height="151" alt="image" src="https://github.com/user-attachments/assets/db9a5f2b-f90a-42ae-bc96-a318463362c1" />
 
 
-
+# Below is from the original project
 
 A simple universal remote designed for ESPHome - simple to assemble for beginners and experienced tinkerers alike! 
 
